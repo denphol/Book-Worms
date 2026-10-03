@@ -19,16 +19,36 @@
 <script>
 const q=document.querySelector('#q'),cat=document.querySelector('#cat'),author=document.querySelector('#author'),cards=[...document.querySelectorAll('.card')],count=document.querySelector('#count'),empty=document.querySelector('#empty');
 function normalizeText(value=''){return value.normalize('NFC').toLocaleLowerCase('th-TH').replace(/\s+/g,' ').trim();}
+function matchesQuery(card, rawTerm){
+  const term=normalizeText(rawTerm);
+  if(!term) return true;
+
+  const title=normalizeText(card.querySelector('h3')?.textContent||'');
+  const writer=normalizeText(card.dataset.author||'');
+  const keywords=normalizeText(card.dataset.search||'');
+  const categories=normalizeText((card.dataset.categories||'').replace(/[\[\]\"',]/g,' '));
+  const description=normalizeText(card.querySelector('.desc')?.textContent||'');
+  const primary=title+' '+writer;
+  const secondary=keywords+' '+categories+' '+description;
+  const tokens=term.split(' ').filter(Boolean);
+
+  // Short queries are intentionally strict: search only title/author.
+  // This prevents a query such as “la” matching an unrelated keyword like “thailand”.
+  if(term.length<=2) return primary.includes(term);
+
+  // For normal queries every typed token must be represented. Title/author remain
+  // the strongest fields, while categories, tags and description broaden discovery.
+  return tokens.every(token=>primary.includes(token)||secondary.includes(token));
+}
 function filter(){
   let n=0;
-  const term=normalizeText(q.value);
+  const term=q.value;
   const selectedCat=cat.value;
   const selectedAuthor=author.value;
   for(const c of cards){
-    const haystack=normalizeText([c.dataset.search,c.querySelector('h3')?.textContent,c.dataset.author,c.textContent].join(' '));
     let categories=[];
     try{categories=JSON.parse(c.dataset.categories||'[]')}catch(e){}
-    const show=(!term||haystack.includes(term))&&(!selectedCat||categories.includes(selectedCat))&&(!selectedAuthor||c.dataset.author===selectedAuthor);
+    const show=matchesQuery(c,term)&&(!selectedCat||categories.includes(selectedCat))&&(!selectedAuthor||c.dataset.author===selectedAuthor);
     c.hidden=!show;
     c.style.display=show?'flex':'none';
     if(show)n++;
